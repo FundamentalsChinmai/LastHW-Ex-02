@@ -1,0 +1,69 @@
+---
+title: An R Markdown document converted from "ex02.ipynb"
+output: html_document
+---
+
+```{r}
+# Load rio package for reading Excel files
+if (!require("rio", quietly = TRUE)) install.packages("rio")
+library(rio)
+# Read Excel file from URL into dataframe
+df = import("https://github.com/FundamentalsChinmai/LastHW-Ex-02/raw/refs/heads/main/data/HDR25_Statistical_Annex_HDI_Table.xlsx")
+```
+
+```{r}
+# Extract data rows starting from row 8 (where country data begins)
+df_data = df[8:nrow(df), ]
+```
+
+```{r}
+# Remove footnote columns and create column names from rows 4-6
+df_clean = df_data[, -c(4, 6, 8, 10, 12, 14)]
+col_names = c(
+    paste(df[5,1], df[6,1]),
+    df[5,2],
+    paste(df[4,3], df[5,3], "(", df[6,3], ")"),
+    paste(df[4,5], df[5,5], "(", df[6,5], ")"),
+    paste(df[4,7], df[5,7], "(", df[6,7], ")"),
+    paste(df[4,9], df[5,9], "(", df[6,9], ")"),
+    paste(df[4,11], df[5,11], "(", df[6,11], ")"),
+    paste(df[4,13], "(", df[6,13], ")"),
+    paste(df[4,15], "(", df[6,15], ")")
+)
+names(df_clean) = trimws(col_names)
+```
+
+```{r}
+# Filter to keep only countries (rows with non-NA HDI rank)
+hdi_rank_col = which(grepl("HDI rank", col_names, ignore.case = TRUE))[1]
+df_countries = df_clean[!is.na(suppressWarnings(as.numeric(df_clean[[hdi_rank_col]]))), ]
+```
+
+```{r}
+# Convert ".." to NA and remove footnotes from numeric columns
+country_col_idx = which(grepl("Country", col_names, ignore.case = TRUE))
+df_countries[] = lapply(df_countries, function(x) ifelse(x == "..", NA, x))
+df_countries[-country_col_idx] = lapply(df_countries[-country_col_idx], function(x) {
+    if (is.character(x)) gsub("\\s+[a-z]{1,3}(\\s|$)", "", x, ignore.case = TRUE) else x
+})
+```
+
+```{r}
+# Convert to numeric and filter complete cases
+df_countries[-country_col_idx] = lapply(df_countries[-country_col_idx], as.numeric)
+key_cols = c(which(grepl("Life expectancy", col_names, ignore.case = TRUE)),
+             which(grepl("Expected years", col_names, ignore.case = TRUE)),
+             which(grepl("Mean years", col_names, ignore.case = TRUE)),
+             which(grepl("Gross national income|GNI", col_names, ignore.case = TRUE)))
+df_final = df_countries[complete.cases(df_countries[key_cols]), ]
+```
+
+```{r}
+# Print final dataset shape and compute means
+cat("Final dataset dimensions:", dim(df_final)[1], "rows,", dim(df_final)[2], "columns\n")
+cat("Life expectancy at birth:", round(mean(df_final[[key_cols[1]]]), 2), "\n")
+cat("Expected years of schooling:", round(mean(df_final[[key_cols[2]]]), 2), "\n")
+cat("Mean years of schooling:", round(mean(df_final[[key_cols[3]]]), 2), "\n")
+cat("Gross national income (GNI) per capita:", round(mean(df_final[[key_cols[4]]]), 2), "\n")
+```
+
